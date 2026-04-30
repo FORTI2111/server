@@ -10,6 +10,10 @@ const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 app.use(cors());
 app.use(express.json());
 
+app.get("/", (req, res) => {
+  res.send("Stripe server działa 🚀");
+});
+
 // 🔥 CREATE CHECKOUT
 app.post("/create-checkout", async (req, res) => {
   const { cart, userId } = req.body;
