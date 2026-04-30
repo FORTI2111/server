@@ -6,17 +6,21 @@ const axios = require("axios");
 
 const app = express();
 
+// 🔥 STRIPE
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
-const ADMIN_ID = process.env.ADMIN_ID; // 👈 ustaw w Render ENV
+const ADMIN_ID = process.env.ADMIN_ID;
 
 console.log("🚀 Server start:", process.env.STRIPE_SECRET_KEY?.slice(0, 8));
 
+// =========================
+// 🔥 MIDDLEWARE
+// =========================
 app.use(cors());
 
-console.log("🔥 WEBHOOK HIT:", event.type);
-
-// ⚠️ WEBHOOK MUSI BYĆ PRZED express.json
+// =========================
+// 🔥 WEBHOOK (MUSI BYĆ PRZED express.json)
+// =========================
 app.post(
   "/webhook",
   bodyParser.raw({ type: "application/json" }),
@@ -40,14 +44,19 @@ app.post(
       try {
         await axios.post(
           `https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`,
-          { chat_id: chatId, text }
+          {
+            chat_id: chatId,
+            text
+          }
         );
       } catch (e) {
         console.log("Telegram error:", e.message);
       }
     };
 
-    // 💰 PAYMENT OK
+    // =========================
+    // 💰 SUCCESS PAYMENT
+    // =========================
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
 
@@ -56,23 +65,22 @@ app.post(
       let cart = [];
       try {
         cart = JSON.parse(session.metadata.cart || "[]");
-      } catch (e) {
-        console.log("Cart parse error");
-      }
+      } catch {}
 
       const itemsText = cart.length
         ? cart.map(p => `- ${p.nazwa} (${p.cena} PLN)`).join("\n")
         : "Brak danych";
 
-      // 👤 user
+      // 👤 USER
       await send(
         userId,
         "✅ PŁATNOŚĆ ZAKOŃCZONA\nTwoje zamówienie zostało przyjęte ✔"
       );
 
-      // 👑 ADMIN (TY)
-      await send(
-        process.env.ADMIN_ID,
+      // 👑 ADMIN
+      if (ADMIN_ID) {
+        await send(
+          ADMIN_ID,
 `🆕 NOWE ZAMÓWIENIE
 
 👤 User ID: ${userId}
@@ -82,10 +90,13 @@ app.post(
 ${itemsText}
 
 📌 Status: OPŁACONE`
-      );
+        );
+      }
     }
 
-    // ❌ FAILED
+    // =========================
+    // ❌ FAILED PAYMENT
+    // =========================
     if (event.type === "checkout.session.async_payment_failed") {
       const session = event.data.object;
 
@@ -95,7 +106,9 @@ ${itemsText}
       );
     }
 
+    // =========================
     // ⌛ EXPIRED
+    // =========================
     if (event.type === "checkout.session.expired") {
       const session = event.data.object;
 
@@ -109,20 +122,29 @@ ${itemsText}
   }
 );
 
-// JSON dla reszty
+// =========================
+// JSON ROUTES
+// =========================
 app.use(express.json());
 
+// =========================
+// HOME
+// =========================
 app.get("/", (req, res) => {
   res.send("Stripe server działa 🚀");
 });
 
-// 💳 CREATE CHECKOUT
+// =========================
+// CREATE CHECKOUT
+// =========================
 app.post("/create-checkout", async (req, res) => {
   try {
     const { cart, userId } = req.body;
 
     let suma = 0;
-    cart.forEach(p => (suma += Number(p.cena) || 0));
+    cart.forEach(p => {
+      suma += Number(p.cena) || 0;
+    });
 
     if (suma < 2) suma = 2;
 
@@ -159,6 +181,9 @@ app.post("/create-checkout", async (req, res) => {
   }
 });
 
+// =========================
+// START SERVER
+// =========================
 app.listen(3000, () => {
   console.log("🚀 Server działa");
 });
