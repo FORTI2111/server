@@ -34,34 +34,45 @@ app.post(
       return res.sendStatus(400);
     }
 
+    console.log("🔥 WEBHOOK:", event.type);
+
     const send = async (chatId, text) => {
-      await axios.post(
-        `https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`,
-        { chat_id: chatId, text }
-      );
+      try {
+        await axios.post(
+          `https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`,
+          { chat_id: chatId, text }
+        );
+      } catch (e) {
+        console.log("Telegram error:", e.message);
+      }
     };
 
-    // 💰 SUCCESS PAYMENT
+    // 💰 PAYMENT OK
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
 
       const userId = session.metadata.userId;
 
-      let itemsText = "Brak danych";
+      let cart = [];
       try {
-        const cart = JSON.parse(session.metadata.cart || "[]");
-        itemsText = cart.map(p => `- ${p.nazwa} (${p.cena} PLN)`).join("\n");
-      } catch {}
+        cart = JSON.parse(session.metadata.cart || "[]");
+      } catch (e) {
+        console.log("Cart parse error");
+      }
 
-      // 👤 klient
+      const itemsText = cart.length
+        ? cart.map(p => `- ${p.nazwa} (${p.cena} PLN)`).join("\n")
+        : "Brak danych";
+
+      // 👤 user
       await send(
         userId,
         "✅ PŁATNOŚĆ ZAKOŃCZONA\nTwoje zamówienie zostało przyjęte ✔"
       );
 
-      // 🔥 admin
+      // 👑 ADMIN (TY)
       await send(
-        ADMIN_ID,
+        process.env.ADMIN_ID,
 `🆕 NOWE ZAMÓWIENIE
 
 👤 User ID: ${userId}
