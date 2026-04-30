@@ -55,24 +55,33 @@ app.post("/create-checkout", async (req, res) => {
 });
 
 // 🔥 WEBHOOK
-app.post("/webhook", bodyParser.raw({ type: "application/json" }), (req, res) => {
-  const event = JSON.parse(req.body);
+app.post("/webhook",
+  bodyParser.raw({ type: "application/json" }),
+  (req, res) => {
+    let event;
 
-  if (event.type === "checkout.session.completed") {
-    const session = event.data.object;
+    try {
+      event = stripe.webhooks.constructEvent(
+        req.body,
+        req.headers["stripe-signature"],
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
+    } catch (err) {
+      console.log("Webhook error:", err.message);
+      return res.sendStatus(400);
+    }
 
-    const userId = session.metadata.userId;
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object;
 
-    console.log("💰 ZAPŁACONO:", userId);
+      axios.post(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
+        chat_id: session.metadata.userId,
+        text: "✅ Płatność zakończona!"
+      });
+    }
 
-    // 👉 WYSYŁKA DO TELEGRAMA
-    axios.post(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
-      chat_id: userId,
-      text: "✅ Płatność zakończona!"
-    });
+    res.sendStatus(200);
   }
-
-  res.sendStatus(200);
-});
+);
 
 app.listen(3000, () => console.log("Server działa"));
