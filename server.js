@@ -63,6 +63,10 @@ app.post(
       const userId = session.metadata.userId;
 
       let cart = [];
+      let order = {};
+      try {
+        order = JSON.parse(session.metadata.order || "{}");
+      } catch {}
       try {
         cart = JSON.parse(session.metadata.cart || "[]");
       } catch {}
@@ -89,8 +93,13 @@ app.post(
 📦 Produkty:
 ${itemsText}
 
+📋 Dane klienta:
+👤 Imię: ${order.name || "brak"}
+📍 Adres: ${order.address || "brak"}
+📞 Telefon: ${order.phone || "brak"}
+
 📌 Status: OPŁACONE`
-        );
+);
       }
     }
 
@@ -139,7 +148,7 @@ app.get("/", (req, res) => {
 // =========================
 app.post("/create-checkout", async (req, res) => {
   try {
-    const { cart, userId } = req.body;
+    const { cart, userId, order } = req.body;
 
     let suma = 0;
     cart.forEach(p => {
@@ -170,7 +179,8 @@ app.post("/create-checkout", async (req, res) => {
 
       metadata: {
         userId,
-        cart: JSON.stringify(cart)
+        cart: JSON.stringify(cart),
+        order: JSON.stringify(order)
       }
     });
 
