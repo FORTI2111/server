@@ -24,6 +24,11 @@ app.post("/create-checkout", async (req, res) => {
     let suma = 0;
     cart.forEach(p => suma += p.cena);
 
+    // 🔥 MINIMUM 2 PLN
+    if (suma < 2) {
+      suma = 2;
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
