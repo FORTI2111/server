@@ -16,34 +16,40 @@ app.get("/", (req, res) => {
 
 // 🔥 CREATE CHECKOUT
 app.post("/create-checkout", async (req, res) => {
-  const { cart, userId } = req.body;
+  try {
+    const { cart, userId } = req.body;
 
-  let suma = 0;
-  cart.forEach(p => suma += p.cena);
+    let suma = 0;
+    cart.forEach(p => suma += p.cena);
 
-  const session = await stripe.checkout.sessions.create({
-    mode: "payment",
-    payment_method_types: ["card"],
-    line_items: [
-      {
-        price_data: {
-          currency: "pln",
-          product_data: {
-            name: "Zamówienie Telegram"
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      payment_method_types: ["card"],
+      line_items: [
+        {
+          price_data: {
+            currency: "pln",
+            product_data: {
+              name: "Zamówienie Telegram"
+            },
+            unit_amount: suma * 100
           },
-          unit_amount: suma * 100
-        },
-        quantity: 1
+          quantity: 1
+        }
+      ],
+      success_url: "https://google.com/success",
+      cancel_url: "https://google.com/cancel",
+      metadata: {
+        userId
       }
-    ],
-    success_url: "https://google.com/success",
-    cancel_url: "https://google.com/cancel",
-    metadata: {
-      userId
-    }
-  });
+    });
 
-  res.json({ url: session.url });
+    return res.json({ url: session.url });
+
+  } catch (err) {
+    console.log("❌ Stripe error:", err.message);
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // 🔥 WEBHOOK
