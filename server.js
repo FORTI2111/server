@@ -14,6 +14,8 @@ console.log("🚀 Server start:", process.env.STRIPE_SECRET_KEY?.slice(0, 8));
 
 app.use(cors());
 
+console.log("🔥 WEBHOOK HIT:", event.type);
+
 // ⚠️ WEBHOOK MUSI BYĆ PRZED express.json
 app.post(
   "/webhook",
