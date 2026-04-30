@@ -115,8 +115,8 @@ app.post("/create-checkout", async (req, res) => {
       ],
 
       // 🔥 WRACANIE DO BOTA
-      success_url: "https://t.me/sklepfortibot",
-      cancel_url: "https://t.me/sklepfortibot",
+      success_url: `https://t.me/sklepfortibot?start=success`,
+      cancel_url: `https://t.me/sklepfortibot?start=cancel`,
 
       metadata: {
         userId
