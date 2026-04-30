@@ -6,16 +6,17 @@ const axios = require("axios");
 
 const app = express();
 
-// 🔥 STRIPE (MUSI BYĆ sk_test_ na Render)
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
-console.log("KEY START:", process.env.STRIPE_SECRET_KEY?.slice(0, 8));
+const ADMIN_ID = process.env.ADMIN_ID; // 👈 ustaw w Render ENV
 
-// middleware
+console.log("🚀 Server start:", process.env.STRIPE_SECRET_KEY?.slice(0, 8));
+
 app.use(cors());
 
-// ⚠️ webhook musi być BEFORE json
-app.post("/webhook",
+// ⚠️ WEBHOOK MUSI BYĆ PRZED express.json
+app.post(
+  "/webhook",
   bodyParser.raw({ type: "application/json" }),
   async (req, res) => {
     let event;
@@ -31,37 +32,53 @@ app.post("/webhook",
       return res.sendStatus(400);
     }
 
-    const sendToUser = async (chatId, text) => {
-      try {
-        await axios.post(
-          `https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`,
-          {
-            chat_id: chatId,
-            text
-          }
-        );
-      } catch (e) {
-        console.log("Telegram error:", e.message);
-      }
+    const send = async (chatId, text) => {
+      await axios.post(
+        `https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`,
+        { chat_id: chatId, text }
+      );
     };
 
-    // ✅ SUCCESS PAYMENT
+    // 💰 SUCCESS PAYMENT
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
 
-      await sendToUser(
-        session.metadata.userId,
-        "✅ PŁATNOŚĆ ZAKOŃCZONA\nTwoje zamówienie zostało opłacone ✔"
+      const userId = session.metadata.userId;
+
+      let itemsText = "Brak danych";
+      try {
+        const cart = JSON.parse(session.metadata.cart || "[]");
+        itemsText = cart.map(p => `- ${p.nazwa} (${p.cena} PLN)`).join("\n");
+      } catch {}
+
+      // 👤 klient
+      await send(
+        userId,
+        "✅ PŁATNOŚĆ ZAKOŃCZONA\nTwoje zamówienie zostało przyjęte ✔"
+      );
+
+      // 🔥 admin
+      await send(
+        ADMIN_ID,
+`🆕 NOWE ZAMÓWIENIE
+
+👤 User ID: ${userId}
+💰 Kwota: ${session.amount_total / 100} PLN
+
+📦 Produkty:
+${itemsText}
+
+📌 Status: OPŁACONE`
       );
     }
 
-    // ❌ FAILED PAYMENT
+    // ❌ FAILED
     if (event.type === "checkout.session.async_payment_failed") {
       const session = event.data.object;
 
-      await sendToUser(
+      await send(
         session.metadata.userId,
-        "❌ PŁATNOŚĆ ODRZUCONA\nSpróbuj ponownie"
+        "❌ PŁATNOŚĆ ODRZUCONA"
       );
     }
 
@@ -69,7 +86,7 @@ app.post("/webhook",
     if (event.type === "checkout.session.expired") {
       const session = event.data.object;
 
-      await sendToUser(
+      await send(
         session.metadata.userId,
         "⌛ PŁATNOŚĆ WYGASŁA"
       );
@@ -79,34 +96,33 @@ app.post("/webhook",
   }
 );
 
-// JSON dla reszty endpointów
+// JSON dla reszty
 app.use(express.json());
 
-// 🔥 HOME
 app.get("/", (req, res) => {
   res.send("Stripe server działa 🚀");
 });
 
-// 🔥 CREATE CHECKOUT
+// 💳 CREATE CHECKOUT
 app.post("/create-checkout", async (req, res) => {
   try {
     const { cart, userId } = req.body;
 
     let suma = 0;
-    cart.forEach(p => suma += Number(p.cena) || 0);
+    cart.forEach(p => (suma += Number(p.cena) || 0));
 
-    // minimum Stripe (2 PLN)
     if (suma < 2) suma = 2;
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
+
       line_items: [
         {
           price_data: {
             currency: "pln",
             product_data: {
-              name: "Zamówienie - sklepfortibot"
+              name: "Zamówienie - sklep"
             },
             unit_amount: Math.round(suma * 100)
           },
@@ -114,24 +130,22 @@ app.post("/create-checkout", async (req, res) => {
         }
       ],
 
-      // 🔥 WRACANIE DO BOTA
-      success_url: `https://t.me/sklepfortibot?start=success`,
-      cancel_url: `https://t.me/sklepfortibot?start=cancel`,
+      success_url: "https://t.me/sklepfortibot?start=success",
+      cancel_url: "https://t.me/sklepfortibot?start=cancel",
 
       metadata: {
-        userId
+        userId,
+        cart: JSON.stringify(cart)
       }
     });
 
-    return res.json({ url: session.url });
-
+    res.json({ url: session.url });
   } catch (err) {
     console.log("❌ Stripe error:", err.message);
-    return res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// start serwera
 app.listen(3000, () => {
-  console.log("🚀 Server działa na porcie 3000");
+  console.log("🚀 Server działa");
 });
